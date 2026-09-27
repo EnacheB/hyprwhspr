@@ -72,6 +72,7 @@ class DebugRecordingsTests(unittest.TestCase):
         app._continuous_flush_lock = threading.Lock()
         app._continuous_transcription_done = threading.Event()
         app._is_zero_volume = mock.Mock(return_value=False)
+        app._chunk_texts = app._chunk_audio = None  # not chunked_transcription
 
         with mock.patch.object(self.main.threading, 'Thread') as thread:
             app._continuous_flush_audio()

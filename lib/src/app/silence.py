@@ -37,6 +37,7 @@ class SilenceMixin:
         self._continuous_stop_silence_monitor()
         self._continuous_silence_stop.clear()
         self._chunk_texts = [] if chunked else None
+        self._chunk_audio = [] if chunked and self.config.get_setting('debug_recordings', False) else None
         self._chunk_tail_has_sound = False
 
         if chunked:
@@ -182,6 +183,8 @@ class SilenceMixin:
             audio_data = self.audio_capture.flush_buffer()
             if audio_data is None or len(audio_data) == 0:
                 return
+            if self._chunk_audio is not None:
+                self._chunk_audio.append(audio_data)
 
             duration = len(audio_data) / self.audio_capture.sample_rate
             if duration < 0.5 or self._is_zero_volume(audio_data):
@@ -243,5 +246,6 @@ class SilenceMixin:
                 self._continuous_flush_lock.release()
                 self._continuous_transcription_done.set()
 
-        self._save_debug_recording(audio_data)
+        if chunk_texts is None:  # chunked pieces are saved whole at stop
+            self._save_debug_recording(audio_data)
         threading.Thread(target=process, daemon=True).start()

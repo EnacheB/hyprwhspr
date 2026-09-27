@@ -108,6 +108,7 @@ class PushToTalkLockTests(unittest.TestCase):
         app._ptt_press_time = None
         app._ptt_locked = False
         app._chunk_texts = None
+        app._chunk_audio = None
         if mock_start:
             app._start_recording = mock.Mock()
         if mock_stop:

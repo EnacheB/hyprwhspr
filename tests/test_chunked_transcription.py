@@ -68,6 +68,7 @@ class ChunkedRecordingTests(unittest.TestCase):
         app.is_processing = False
         app._recording_session = object()
         app._chunk_texts = None
+        app._chunk_audio = None
         app._chunk_tail_has_sound = True
         app._continuous_silence_thread = None
         app._continuous_silence_stop = threading.Event()
@@ -130,6 +131,20 @@ class ChunkedRecordingTests(unittest.TestCase):
             app.whisper_manager.transcribe_audio.call_args.kwargs['prompt_context'], 'First part.')
         app._inject_text.assert_called_once_with('First part. tail words')
         self.assertIsNone(app._chunk_texts)
+
+    def test_debug_recording_is_the_whole_recording(self):
+        app = self._app(['First part.', 'tail words'])
+        app._chunk_texts = []
+        app._chunk_audio = []
+        app._save_debug_recording = mock.Mock()
+        self._flush_and_wait(app)
+        app.audio_capture.stop_recording.return_value = np.full(16000, 0.1, dtype=np.float32)
+
+        app._stop_recording()
+
+        app._save_debug_recording.assert_called_once()  # not once per piece
+        self.assertEqual(len(app._save_debug_recording.call_args.args[0]), 16000 * 21)
+        self.assertIsNone(app._chunk_audio)
 
     def test_stop_with_nothing_after_last_piece_still_pastes(self):
         app = self._app()

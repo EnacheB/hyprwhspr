@@ -222,6 +222,9 @@ class hyprwhsprApp(RecordingMixin, ShortcutsMixin, SilenceMixin, FeedbackMixin, 
         # chunked_transcription: text of pieces flushed at pauses, held until stop
         # (None when the current recording isn't chunked)
         self._chunk_texts = None
+        # chunked_transcription: audio of pieces flushed at pauses, kept for
+        # debug_recordings (None when not chunked or debug_recordings is off)
+        self._chunk_audio = None
         # chunked_transcription: sound was heard since the last piece was cut
         self._chunk_tail_has_sound = False
 

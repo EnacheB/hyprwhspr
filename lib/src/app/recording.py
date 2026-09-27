@@ -126,6 +126,7 @@ class RecordingMixin:
                 # Store language override for this recording session
                 self._current_language_override = language_override
                 self._chunk_texts = None
+                self._chunk_audio = None
                 # Push-to-talk hold is measured from this accepted press
                 self._ptt_press_time = time.monotonic()
                 self._ptt_locked = False
@@ -542,7 +543,14 @@ class RecordingMixin:
             # Stop audio capture
             self._wait_for_start_settled()
             audio_data = self.audio_capture.stop_recording()
-            self._save_debug_recording(audio_data)
+            if self._chunk_audio:
+                # chunked_transcription took the earlier pieces out of the buffer
+                if audio_data is not None:
+                    self._chunk_audio.append(audio_data)
+                self._save_debug_recording(np.concatenate(self._chunk_audio))
+            else:
+                self._save_debug_recording(audio_data)
+            self._chunk_audio = None
 
             chunk_texts = None
             if chunked:
