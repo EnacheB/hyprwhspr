@@ -501,8 +501,11 @@ class RecordingMixin:
         except Exception as e:
             log(f"[WARN] Failed to save debug recording: {e}")
 
-    def _stop_recording(self):
-        """Stop voice recording and process audio"""
+    def _stop_recording(self, submit=False):
+        """Stop voice recording and process audio
+
+        submit: press Enter after pasting the transcription.
+        """
         with self._recording_lock:
             if not self.is_recording:
                 return
@@ -561,7 +564,7 @@ class RecordingMixin:
             if chunk_texts and (audio_data is None or not self._chunk_tail_has_sound):
                 # Only silence after the last piece: Whisper would invent text for it
                 self.audio_manager.play_stop_sound()
-                self._process_audio(None, chunk_texts)
+                self._process_audio(None, chunk_texts, submit)
             elif audio_data is None:
                 # Stream was broken - check if we got any callbacks
                 self.audio_manager.play_error_sound()
@@ -587,7 +590,7 @@ class RecordingMixin:
             else:
                 # Valid audio data - process it
                 self.audio_manager.play_stop_sound()
-                self._process_audio(audio_data, chunk_texts)
+                self._process_audio(audio_data, chunk_texts, submit)
                 
             # Clear language override after transcription completes
             self._current_language_override = None
@@ -611,7 +614,7 @@ class RecordingMixin:
         finally:
             self._recording_finalizing.clear()
 
-    def _process_audio(self, audio_data, chunk_texts=None):
+    def _process_audio(self, audio_data, chunk_texts=None, submit=False):
         """Process captured audio through Whisper
 
         chunk_texts: pieces chunked_transcription already transcribed; audio_data
@@ -656,7 +659,7 @@ class RecordingMixin:
                     return
 
                 # Inject text
-                outcome = self._inject_text(text)
+                outcome = self._inject_text(text, submit)
                 success = outcome != InjectionOutcome.FAILED
             else:
                 log("[WARN] No transcription generated")
@@ -687,7 +690,7 @@ class RecordingMixin:
         if self._recording_control_server.has_capture_subscriber():
             self._notify_capture("", final=True)
 
-    def _inject_text(self, text):
+    def _inject_text(self, text, submit=False):
         """Inject transcribed text into active application"""
 
         # Capture mode: route text to client instead of injecting into active app
@@ -696,7 +699,7 @@ class RecordingMixin:
             return InjectionOutcome.INJECTED
 
         try:
-            outcome = self.text_injector.inject_text(text)
+            outcome = self.text_injector.inject_text(text, submit)
             if outcome == InjectionOutcome.FAILED:
                 log(f"[ERROR] Text injection failed ({len(text)} chars)")
                 notify = True

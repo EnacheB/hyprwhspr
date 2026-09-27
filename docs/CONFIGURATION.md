@@ -280,6 +280,14 @@ Press once to start, press again to stop:
 bindd = SUPER ALT, D, Speech-to-text, exec, /usr/lib/hyprwhspr/config/hyprland/hyprwhspr-tray.sh record
 ```
 
+#### Toggle and submit
+
+Like toggle, but stopping also presses Enter after pasting (for chat and search inputs), whatever `auto_submit` says:
+
+```bash
+bindd = SUPER ALT, S, Speech-to-text-submit, exec, echo "submit" > "$XDG_RUNTIME_DIR/hyprwhspr/recording_control"
+```
+
 #### Push-to-talk mode
 
 Hold the key to record, release to stop:

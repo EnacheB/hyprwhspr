@@ -129,7 +129,7 @@ class ChunkedRecordingTests(unittest.TestCase):
 
         self.assertEqual(
             app.whisper_manager.transcribe_audio.call_args.kwargs['prompt_context'], 'First part.')
-        app._inject_text.assert_called_once_with('First part. tail words')
+        app._inject_text.assert_called_once_with('First part. tail words', False)
         self.assertIsNone(app._chunk_texts)
 
     def test_debug_recording_is_the_whole_recording(self):
@@ -154,7 +154,7 @@ class ChunkedRecordingTests(unittest.TestCase):
         app._stop_recording()
 
         app.whisper_manager.transcribe_audio.assert_not_called()
-        app._inject_text.assert_called_once_with('First part. Second part.')
+        app._inject_text.assert_called_once_with('First part. Second part.', False)
         app._notify_zero_volume.assert_not_called()
 
     def test_silent_tail_is_not_transcribed(self):
@@ -166,7 +166,7 @@ class ChunkedRecordingTests(unittest.TestCase):
         app._stop_recording()
 
         app.whisper_manager.transcribe_audio.assert_not_called()
-        app._inject_text.assert_called_once_with('Real words.')
+        app._inject_text.assert_called_once_with('Real words.', False)
 
     def test_phantom_tail_is_dropped(self):
         app = self._app(['Thank you'])
@@ -175,7 +175,7 @@ class ChunkedRecordingTests(unittest.TestCase):
 
         app._stop_recording()
 
-        app._inject_text.assert_called_once_with('Real words.')
+        app._inject_text.assert_called_once_with('Real words.', False)
 
     def test_stop_waits_for_the_piece_in_flight(self):
         app = self._app(['tail'])
@@ -191,7 +191,7 @@ class ChunkedRecordingTests(unittest.TestCase):
         threading.Thread(target=finish_piece).start()
         app._stop_recording()
 
-        app._inject_text.assert_called_once_with('one two tail')
+        app._inject_text.assert_called_once_with('one two tail', False)
 
     def test_monitor_waits_for_minimum_piece_length(self):
         app = self._app()

@@ -1335,10 +1335,8 @@ except Exception:
 
         threading.Thread(target=_restore, daemon=True).start()
 
-    def _send_enter_if_auto_submit(self):
-        """Send Enter key if auto_submit is enabled"""
-        if not (self.config_manager and self.config_manager.get_setting('auto_submit', False)):
-            return
+    def _send_enter(self):
+        """Send Enter key (submits chat/search inputs after a paste)"""
         try:
             if self._is_x11_session() and getattr(self, 'xdotool_available', False):
                 enter_result = subprocess.run(
@@ -1364,16 +1362,19 @@ except Exception:
                     stderr = (enter_result.stderr or b"").decode("utf-8", "ignore")
                     log(f"  wtype Enter key failed: {stderr}")
             else:
-                log("  auto_submit enabled but no key-injection tool available")
+                log("  Enter requested but no key-injection tool available")
         except Exception as e:
-            log(f"  auto_submit Enter key failed: {e}")
+            log(f"  Enter key failed: {e}")
 
     # ------------------------ Public API ------------------------
 
-    def inject_text(self, text: str) -> InjectionOutcome:
-        """Prepare, retain and deliver one dictation at a time."""
+    def inject_text(self, text: str, submit: bool = False) -> InjectionOutcome:
+        """Prepare, retain and deliver one dictation at a time.
+
+        submit: press Enter after pasting, even without auto_submit.
+        """
         with self._delivery_lock:
-            return self._prepare_and_inject_text(text)
+            return self._prepare_and_inject_text(text, submit)
 
     def recover_last(self, action):
         """Recover prepared text without rerunning hooks or submitting Enter."""
@@ -1393,14 +1394,14 @@ except Exception:
             if action == 'copy_last':
                 ok = self._copy_text_to_clipboard(text)
                 return ok, ('Last dictation copied' if ok else 'Could not copy last dictation')
-            ok = self._inject_via_clipboard_and_hotkey(text, auto_submit=False)
+            ok = self._inject_via_clipboard_and_hotkey(text)
             return ok, ('Last dictation delivery dispatched' if ok else 'Could not paste last dictation; try record copy-last')
         except Exception:
             return False, 'Could not recover last dictation; check clipboard and paste tools'
         finally:
             self._delivery_lock.release()
 
-    def _prepare_and_inject_text(self, text: str) -> InjectionOutcome:
+    def _prepare_and_inject_text(self, text: str, submit: bool = False) -> InjectionOutcome:
         """
         Inject text into the currently focused application
 
@@ -1439,7 +1440,9 @@ except Exception:
                 log(f"⚠️  inject_mode='{inject_mode}' is deprecated: direct typing drops characters at speed. "
                       f"Using clipboard+paste instead.")
 
-            injected = self._inject_via_clipboard_and_hotkey(processed_text, retain=True)
+            if self.config_manager and self.config_manager.get_setting('auto_submit', False):
+                submit = True
+            injected = self._inject_via_clipboard_and_hotkey(processed_text, submit=submit, retain=True)
             return InjectionOutcome.INJECTED if injected else InjectionOutcome.FAILED
 
         except Exception as e:
@@ -1510,8 +1513,11 @@ except Exception:
 
     # ------------------------ Paste injection (primary method) ------------------------
 
-    def _inject_via_clipboard_and_hotkey(self, text: str, auto_submit: bool = True, retain: bool = False) -> bool:
-        """Copy text to clipboard, then trigger the compositor-native paste path."""
+    def _inject_via_clipboard_and_hotkey(self, text: str, submit: bool = False, retain: bool = False) -> bool:
+        """Copy text to clipboard, then trigger the compositor-native paste path.
+
+        submit: press Enter after a successful paste.
+        """
         try:
             window_lookup_needed = self._active_window_lookup_needed()
             window_info = (
@@ -1563,18 +1569,18 @@ except Exception:
                 time.sleep(0.05)
                 typed = self._type_text_ydotool(text)
                 if typed:
-                    if auto_submit:
-                        self._send_enter_if_auto_submit()
+                    if submit:
+                        self._send_enter()
                     return True
 
             with self._clipboard_lock:
-                return self._paste_via_clipboard(text, paste_chord, gnome_wayland_session, auto_submit)
+                return self._paste_via_clipboard(text, paste_chord, gnome_wayland_session, submit)
 
         except Exception as e:
             log(f"Clipboard+hotkey injection failed: {e}")
             return False
 
-    def _paste_via_clipboard(self, text, paste_chord, gnome_wayland_session, auto_submit):
+    def _paste_via_clipboard(self, text, paste_chord, gnome_wayland_session, submit):
         """Deliver while owning _clipboard_lock, excluding background restores."""
         try:
             saved_clipboard = self._save_clipboard()
@@ -1650,8 +1656,8 @@ except Exception:
                 if self.config_manager:
                     restore_delay = float(self.config_manager.get_setting('clipboard_clear_delay', 5.0))
                 self._restore_clipboard(saved_clipboard, injected=text.encode("utf-8"), delay=restore_delay)
-                if auto_submit:
-                    self._send_enter_if_auto_submit()
+                if submit:
+                    self._send_enter()
             elif (
                 gnome_wayland_session
                 and not getattr(self, '_last_ydotool_failure_explicit', False)

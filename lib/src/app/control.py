@@ -126,8 +126,15 @@ class ControlMixin:
             if recording_mode == "long_form":
                 log("[CONTROL] Long-form submit requested (immediate)")
                 self._longform.submit_shortcut()
+            elif self.is_recording:
+                # Stop like "stop", then press Enter after pasting
+                log("[CONTROL] Recording stop + submit requested (immediate)")
+                if recording_mode == "continuous":
+                    self._continuous_stop_and_wait()
+                self._stop_recording(submit=True)
             else:
-                log("[CONTROL] Submit command only valid in long_form mode")
+                # Idle: start, so one key both starts and submits
+                self._handle_control_command("start", language)
         elif action == "model_unload":
             self._handle_model_operation("unload")
         elif action == "model_reload":

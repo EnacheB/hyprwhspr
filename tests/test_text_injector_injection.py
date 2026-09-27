@@ -45,7 +45,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
                         mock.patch.object(injector, '_is_x11_session', return_value=True),
                         mock.patch.object(injector, '_send_paste_keys_xdotool', return_value=True) as paste,
                         mock.patch.object(injector, '_restore_clipboard') as restore,
-                        mock.patch.object(injector, '_send_enter_if_auto_submit') as submit,
+                        mock.patch.object(injector, '_send_enter') as submit,
                         mock.patch('text_injector.time.sleep') as sleep,
                     ):
                         self.assertEqual(injector._paste_via_clipboard('hello', 'ctrl+v', False, False), copied)
@@ -161,7 +161,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_wtype") as wtype,
             mock.patch.object(injector, "_send_paste_keys_slow") as ydotool,
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch("text_injector.time.sleep"),
         ):
             self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
@@ -182,7 +182,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_layout_is_type_safe", return_value=True),
             mock.patch.object(injector, "_restore_clipboard") as restore_clipboard,
-            mock.patch.object(injector, "_send_enter_if_auto_submit") as auto_submit,
+            mock.patch.object(injector, "_send_enter") as auto_submit,
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -195,7 +195,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
                 clear=True,
             ),
         ):
-            self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
+            self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello", submit=True))
 
         paste_chord.assert_not_called()
         direct_type.assert_called_once_with("hello")
@@ -223,7 +223,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_layout_is_type_safe", return_value=True),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -286,7 +286,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_layout_is_type_safe", return_value=True),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -461,7 +461,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_wtype") as wtype,
             mock.patch.object(injector, "_send_paste_keys_slow") as ydotool,
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch("text_injector.time.sleep"),
         ):
             self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
@@ -484,7 +484,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_gnome_force_latin_layout", return_value=None),
             mock.patch.object(injector, "_gnome_restore_layout"),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch("text_injector.time.sleep"),
         ):
             self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
@@ -505,7 +505,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=True),
             mock.patch.object(injector, "_clear_stuck_modifiers"),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch("text_injector.time.sleep"),
             redirect_stdout(output),
         ):
@@ -529,7 +529,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=True),
             mock.patch.object(injector, "_clear_stuck_modifiers"),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch("text_injector.time.sleep"),
             redirect_stdout(output),
         ):
@@ -551,7 +551,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow") as ydotool,
             mock.patch.object(injector, "_clear_stuck_modifiers") as clear_modifiers,
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch("text_injector.time.sleep"),
         ):
             self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
@@ -568,7 +568,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_run_ydotool") as ydotool,
             mock.patch("text_injector.subprocess.run") as run,
         ):
-            injector._send_enter_if_auto_submit()
+            injector._send_enter()
         native.assert_called_once_with("enter")
         ydotool.assert_not_called()
         run.assert_not_called()
@@ -583,10 +583,34 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_run_ydotool", return_value=completed) as ydotool,
             mock.patch("text_injector.subprocess.run") as run,
         ):
-            injector._send_enter_if_auto_submit()
+            injector._send_enter()
         native.assert_called_once_with("enter")
         ydotool.assert_called_once_with(["key", "28:1", "28:0"], timeout=1)
         run.assert_not_called()
+
+    def _enter_presses(self, submit, auto_submit=False):
+        injector = self._injector()
+        injector.config_manager = ConfigStub({"auto_submit": auto_submit})
+        with (
+            mock.patch("text_injector.shutil.which", return_value=None),
+            mock.patch("text_injector.pyperclip.copy"),
+            mock.patch.object(injector, "_get_active_window_info", return_value=None),
+            mock.patch.object(injector, "_save_clipboard", return_value=b"old clipboard"),
+            mock.patch.object(injector, "_restore_clipboard"),
+            mock.patch.object(injector, "_is_hyprland_session", return_value=True),
+            mock.patch.object(injector, "_send_shortcut_hyprland", return_value=True) as native,
+            mock.patch.dict("text_injector.os.environ", {"WAYLAND_DISPLAY": "wayland-0"}, clear=True),
+        ):
+            injector.inject_text("hello", submit=submit)
+        return native.call_args_list.count(mock.call("enter"))
+
+    def test_submit_request_presses_enter_after_paste_without_auto_submit(self):
+        self.assertEqual(self._enter_presses(submit=True), 1)
+        self.assertEqual(self._enter_presses(submit=False), 0)
+
+    def test_auto_submit_presses_enter_once_even_when_also_requested(self):
+        self.assertEqual(self._enter_presses(submit=False, auto_submit=True), 1)
+        self.assertEqual(self._enter_presses(submit=True, auto_submit=True), 1)
 
     def test_ydotool_sends_arbitrary_single_key_chord(self):
         injector = self._injector()
@@ -819,7 +843,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=True) as paste_chord,
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_restore_clipboard") as restore_clipboard,
-            mock.patch.object(injector, "_send_enter_if_auto_submit") as auto_submit,
+            mock.patch.object(injector, "_send_enter") as auto_submit,
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -832,7 +856,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
                 clear=True,
             ),
         ):
-            self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
+            self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello", submit=True))
 
         copy.assert_called_once_with("hello")
         paste_chord.assert_called_once_with("ctrl+v")
@@ -854,7 +878,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_layout_is_type_safe", return_value=False),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit") as auto_submit,
+            mock.patch.object(injector, "_send_enter") as auto_submit,
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -867,7 +891,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
                 clear=True,
             ),
         ):
-            self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello"))
+            self.assertTrue(injector._inject_via_clipboard_and_hotkey("hello", submit=True))
 
         direct_type.assert_not_called()
         copy.assert_called_once_with("hello")
@@ -888,7 +912,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_layout_is_type_safe", return_value=True),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -921,7 +945,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_layout_is_type_safe", return_value=True),
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -950,7 +974,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=False) as paste_chord,
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -980,7 +1004,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=True),
             mock.patch.object(injector, "_layout_is_type_safe") as type_safe,
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -1007,7 +1031,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_type_text_ydotool", return_value=True),
             mock.patch.object(injector, "_layout_is_type_safe", return_value=False),
             mock.patch.object(injector, "_restore_clipboard") as restore_clipboard,
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -1248,7 +1272,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=True),
             mock.patch.object(injector, "_type_text_ydotool", return_value=True),
             mock.patch.object(injector, "_restore_clipboard") as restore_clipboard,
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {
@@ -1339,7 +1363,7 @@ class TextInjectorInjectionTests(unittest.TestCase):
             mock.patch.object(injector, "_send_paste_keys_slow", return_value=True) as paste_chord,
             mock.patch.object(injector, "_type_text_ydotool", return_value=True) as direct_type,
             mock.patch.object(injector, "_restore_clipboard"),
-            mock.patch.object(injector, "_send_enter_if_auto_submit"),
+            mock.patch.object(injector, "_send_enter"),
             mock.patch.dict(
                 "text_injector.os.environ",
                 {

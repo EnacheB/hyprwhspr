@@ -166,7 +166,7 @@ class DictationRecoveryTests(unittest.TestCase):
             preprocess.assert_called_once_with('raw')
             hook.assert_called_once()
             copy.assert_called_once_with('Café 東京')
-            paste.assert_has_calls([mock.call('Café 東京', 'ctrl+v', False, True),
+            paste.assert_has_calls([mock.call('Café 東京', 'ctrl+v', False, False),
                                    mock.call('Café 東京', 'ctrl+v', False, False)])
 
     def test_replacement_empty_filtered_and_consumed_results(self):
@@ -244,7 +244,7 @@ class DictationRecoveryTests(unittest.TestCase):
             mock.patch.object(injector, '_is_gnome_wayland_session', return_value=False),
             mock.patch.object(injector, '_resolve_paste_chord', return_value=(False, 'disabled-app')),
             mock.patch.object(injector, '_copy_text_to_clipboard') as copy,
-            mock.patch.object(injector, '_send_enter_if_auto_submit') as enter,
+            mock.patch.object(injector, '_send_enter') as enter,
         ):
             self.assertTrue(injector.recover_last('paste_last')[0])
         copy.assert_not_called()
@@ -267,7 +267,7 @@ class DictationRecoveryTests(unittest.TestCase):
                     mock.patch.object(injector, '_copy_text_to_clipboard', return_value=True),
                     mock.patch.object(injector, '_send_paste_keys_slow', return_value=True),
                     mock.patch.object(injector, '_restore_clipboard'),
-                    mock.patch.object(injector, '_send_enter_if_auto_submit') as enter,
+                    mock.patch.object(injector, '_send_enter') as enter,
                     mock.patch('text_injector.time.sleep'),
                     mock.patch('text_injector.subprocess.run', return_value=mock.Mock(returncode=0, stdout=b'')),
                 ):
