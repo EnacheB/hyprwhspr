@@ -40,6 +40,7 @@ class TranscriptionBackend:
     reinit_on_resume = False  # reinit after suspend/resume recovery
     loads_in_background = False  # load can outlast startup (GPU transfer, sidecar, first-run download)
     streams_audio = False     # consumes audio live over a connection (realtime-ws)
+    supports_prompt_context = False  # transcribe() takes prompt_context (chunked_transcription)
 
     def __init__(self, manager):
         self._manager = manager

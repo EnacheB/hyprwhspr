@@ -3,6 +3,7 @@
 import threading
 
 from text_injector import InjectionOutcome
+from text_script import join_segments
 from hallucination import is_hallucination
 from service_log import log
 
@@ -24,15 +25,26 @@ class SilenceMixin:
         noise_floor = min(samples)
         return max(noise_floor * 2, 2e-4)
 
-    def _continuous_start_silence_monitor(self):
-        """Start monitoring for silence to trigger auto-paste in continuous mode"""
+    def _continuous_start_silence_monitor(self, chunked=False):
+        """Start monitoring for silence to trigger auto-paste in continuous mode
+
+        chunked: for chunked_transcription instead - flush pieces of at least
+        chunked_min_seconds at short pauses and hold their text until stop.
+        """
         self._continuous_cancelled = False
         with self._recording_lock:
             self._continuous_delivery_failure_notified = False
         self._continuous_stop_silence_monitor()
         self._continuous_silence_stop.clear()
+        self._chunk_texts = [] if chunked else None
+        self._chunk_tail_has_sound = False
 
-        silence_seconds = self._get_float_setting('continuous_silence_seconds', 2.0)
+        if chunked:
+            min_seconds = self._get_float_setting('chunked_min_seconds', 20.0)
+            silence_seconds = self._get_float_setting('chunked_silence_seconds', 0.5)
+        else:
+            min_seconds = 0
+            silence_seconds = self._get_float_setting('continuous_silence_seconds', 2.0)
         configured_threshold = self._get_float_setting('continuous_silence_threshold', 0)
         samples_needed = max(1, int(silence_seconds / self._POLL_INTERVAL))
 
@@ -51,11 +63,14 @@ class SilenceMixin:
                     raw_level = self.audio_capture.rolling_avg_level
                     if raw_level < threshold:
                         silent_count += 1
-                        if silent_count >= samples_needed:
+                        if (silent_count >= samples_needed
+                                and self.audio_capture.buffered_seconds() >= min_seconds):
                             self._continuous_flush_audio()
                             silent_count = 0
+                            self._chunk_tail_has_sound = False
                     else:
                         silent_count = 0
+                        self._chunk_tail_has_sound = True
                     self._continuous_silence_stop.wait(self._POLL_INTERVAL)
             except Exception as e:
                 log(f"[CONTINUOUS] Silence monitor error: {e}")
@@ -184,6 +199,10 @@ class SilenceMixin:
         if not should_transcribe:
             return
 
+        # chunked_transcription holds text in this recording's own list, so a
+        # piece finishing after a cancel can't leak into the next recording
+        chunk_texts = self._chunk_texts
+
         # Transcribe in background thread; lock is held until transcription
         # completes so the next flush is blocked until this one finishes.
         def process():
@@ -192,11 +211,16 @@ class SilenceMixin:
                     audio_data,
                     sample_rate=self.audio_capture.sample_rate,
                     language_override=self._current_language_override,
+                    prompt_context=join_segments(chunk_texts) if chunk_texts else None,
                 )
                 if transcription and transcription.strip():
                     text = transcription.strip()
                     if is_hallucination(text, self.config.get_hallucination_markers()):
                         log(f"[CONTINUOUS] Hallucination ignored: {text!r}")
+                        return
+                    if chunk_texts is not None:
+                        chunk_texts.append(text)
+                        log(f"[CONTINUOUS] Holding {len(text)} chars until recording stops")
                         return
                     if self._continuous_cancelled:
                         log("[CONTINUOUS] Cancelled — discarding transcription")
@@ -214,7 +238,8 @@ class SilenceMixin:
             except Exception as e:
                 log(f"[CONTINUOUS] Transcription error: {e}")
             finally:
-                self._notify_capture("", final=True)
+                if chunk_texts is None:
+                    self._notify_capture("", final=True)
                 self._continuous_flush_lock.release()
                 self._continuous_transcription_done.set()
 

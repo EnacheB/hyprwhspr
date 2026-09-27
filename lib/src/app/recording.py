@@ -6,6 +6,7 @@ import time
 
 from paths import DEBUG_RECORDINGS_DIR
 from text_injector import InjectionOutcome
+from text_script import join_segments
 from processing_trace import build_processing_trace
 from hallucination import is_hallucination
 from service_log import log
@@ -124,6 +125,7 @@ class RecordingMixin:
                 self._recording_session = session
                 # Store language override for this recording session
                 self._current_language_override = language_override
+                self._chunk_texts = None
                 # Push-to-talk hold is measured from this accepted press
                 self._ptt_press_time = time.monotonic()
                 self._ptt_locked = False
@@ -340,6 +342,11 @@ class RecordingMixin:
                 
                 # Stream is working and stable - start monitoring
                 self._start_audio_level_monitoring()
+
+                # Transcribe long recordings piece by piece while they run
+                if (self.config.get_setting('chunked_transcription', False) and backend != 'realtime-ws'
+                        and self.config.get_setting('recording_mode', 'toggle') in ('toggle', 'push_to_talk', 'auto')):
+                    self._continuous_start_silence_monitor(chunked=True)
                     
             except (RuntimeError, Exception) as e:
                 log(f"[ERROR] Failed to start recording: {e}")
@@ -527,13 +534,27 @@ class RecordingMixin:
             backend = self.config.get_setting('transcription_backend', 'pywhispercpp')
             backend = normalize_backend(backend)
             
+            # chunked_transcription: stop flushing, so the buffer keeps only the tail
+            chunked = self._chunk_texts is not None
+            if chunked:
+                self._continuous_stop_silence_monitor()
+
             # Stop audio capture
             self._wait_for_start_settled()
             audio_data = self.audio_capture.stop_recording()
             self._save_debug_recording(audio_data)
 
+            chunk_texts = None
+            if chunked:
+                self._continuous_transcription_done.wait()  # let the last piece finish
+                chunk_texts, self._chunk_texts = self._chunk_texts, None
+
             # Check for zero-volume or broken stream
-            if audio_data is None:
+            if chunk_texts and (audio_data is None or not self._chunk_tail_has_sound):
+                # Only silence after the last piece: Whisper would invent text for it
+                self.audio_manager.play_stop_sound()
+                self._process_audio(None, chunk_texts)
+            elif audio_data is None:
                 # Stream was broken - check if we got any callbacks
                 self.audio_manager.play_error_sound()
                 with self.audio_capture.lock:
@@ -558,7 +579,7 @@ class RecordingMixin:
             else:
                 # Valid audio data - process it
                 self.audio_manager.play_stop_sound()
-                self._process_audio(audio_data)
+                self._process_audio(audio_data, chunk_texts)
                 
             # Clear language override after transcription completes
             self._current_language_override = None
@@ -582,8 +603,12 @@ class RecordingMixin:
         finally:
             self._recording_finalizing.clear()
 
-    def _process_audio(self, audio_data):
-        """Process captured audio through Whisper"""
+    def _process_audio(self, audio_data, chunk_texts=None):
+        """Process captured audio through Whisper
+
+        chunk_texts: pieces chunked_transcription already transcribed; audio_data
+        is then only the tail after them, or None when nothing is left.
+        """
         with self._recording_lock:
             if self.is_processing:
                 return
@@ -591,12 +616,20 @@ class RecordingMixin:
 
         success = False
         try:
-            # Transcribe audio with language override if set
-            transcription = self.whisper_manager.transcribe_audio(
-                audio_data,
-                sample_rate=self.audio_capture.sample_rate,
-                language_override=self._current_language_override,
-            )
+            transcription = ''
+            if audio_data is not None:
+                # Transcribe audio with language override if set
+                transcription = self.whisper_manager.transcribe_audio(
+                    audio_data,
+                    sample_rate=self.audio_capture.sample_rate,
+                    language_override=self._current_language_override,
+                    prompt_context=join_segments(chunk_texts) if chunk_texts else None,
+                ) or ''
+            if chunk_texts:
+                # Drop a phantom tail here: the joined text won't match a marker
+                if is_hallucination(transcription.strip(), self.config.get_hallucination_markers()):
+                    transcription = ''
+                transcription = join_segments(chunk_texts + [transcription])
 
             if transcription and transcription.strip():
                 text = transcription.strip()

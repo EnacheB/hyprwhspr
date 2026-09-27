@@ -641,6 +641,25 @@
       "maximum": 30,
       "default": 0.0,
       "description": "Push-to-talk hold-to-lock: hold the key this many seconds and the recording latches on (hands-free). The next press ends it. External bindings must send `release` on key-up (`stop` never latches). 0 (default) = disabled, classic push-to-talk."
+    },
+    "chunked_transcription": {
+      "type": "boolean",
+      "default": false,
+      "description": "Transcribe long recordings in pieces while you speak (toggle, push_to_talk and auto modes; not realtime-ws). Once chunked_min_seconds of audio has built up, the next pause of chunked_silence_seconds starts a background transcription; the text is still pasted once at stop, so stopping only waits for the last piece."
+    },
+    "chunked_min_seconds": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 600,
+      "default": 20.0,
+      "description": "chunked_transcription: minimum seconds of audio in a piece before a pause may end it"
+    },
+    "chunked_silence_seconds": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 10,
+      "default": 0.5,
+      "description": "chunked_transcription: seconds of silence that end a piece"
     }
   }
 }

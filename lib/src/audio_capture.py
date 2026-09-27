@@ -1238,6 +1238,11 @@ class AudioCapture:
             self._reset_audio_buffer_locked()
             log("[AUDIO] Buffer cleared")
 
+    def buffered_seconds(self) -> float:
+        """Seconds of audio in the recording buffer (since start or the last flush)."""
+        with self.lock:
+            return self._buffered_samples / self.sample_rate
+
     def flush_buffer(self) -> Optional[np.ndarray]:
         """Atomically copy and clear the audio buffer. Returns audio data or None."""
         with self.lock:

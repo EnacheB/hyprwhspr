@@ -219,6 +219,11 @@ class hyprwhsprApp(RecordingMixin, ShortcutsMixin, SilenceMixin, FeedbackMixin, 
         self._continuous_transcription_done.set()  # no transcription in flight
         self._continuous_cancelled = False  # set on cancel to suppress in-flight injection
         self._continuous_delivery_failure_notified = False
+        # chunked_transcription: text of pieces flushed at pauses, held until stop
+        # (None when the current recording isn't chunked)
+        self._chunk_texts = None
+        # chunked_transcription: sound was heard since the last piece was cut
+        self._chunk_tail_has_sound = False
 
         # Auto-stop-on-silence state (toggle/auto modes). The stop Event is created fresh
         # per session (not reused) so a stale monitor generation can never signal a newer one.
