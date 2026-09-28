@@ -382,6 +382,7 @@ install_deps_apt() {
         pipewire-pulse \
         pulseaudio-utils \
         wl-clipboard \
+        inotify-tools \
         xclip \
         xdotool \
         x11-utils \
@@ -442,6 +443,7 @@ install_deps_dnf() {
         pipewire-pulseaudio \
         ydotool \
         wl-clipboard \
+        inotify-tools \
         xclip \
         xdotool \
         xprop
@@ -492,7 +494,8 @@ install_deps_zypper() {
         pipewire \
         pipewire-pulseaudio \
         ydotool \
-        wl-clipboard
+        wl-clipboard \
+        inotify-tools
 
     # X11 package availability varies between Leap and Tumbleweed. Install the
     # native equivalents when published, without adding unsupported repositories.

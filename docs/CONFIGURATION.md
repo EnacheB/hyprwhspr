@@ -1383,17 +1383,16 @@ File transcription does not work with the realtime WebSocket backend.
 
 ### Waybar
 
-Add dynamic tray icon to your `~/.config/waybar/config`:
+`hyprwhspr waybar install` sets this up. To add the dynamic tray icon by hand, put this in your `~/.config/waybar/config`:
 
 ```jsonc
 {
     "custom/hyprwhspr": {
-        "exec": "/usr/lib/hyprwhspr/config/hyprland/hyprwhspr-tray.sh status",
-        "interval": 2,
+        "exec": "/usr/lib/hyprwhspr/config/hyprland/hyprwhspr-tray.sh follow",
+        "restart-interval": 5,
         "return-type": "json",
-        "exec-on-event": true,
         "format": "{}",
-        "on-click": "/usr/lib/hyprwhspr/config/hyprland/hyprwhspr-tray.sh toggle",
+        "on-click": "/usr/lib/hyprwhspr/config/hyprland/hyprwhspr-tray.sh record",
         "on-click-right": "/usr/lib/hyprwhspr/config/hyprland/hyprwhspr-tray.sh restart",
         "tooltip": true
     }
@@ -1405,6 +1404,8 @@ Add CSS styling to your `~/.config/waybar/style.css`:
 ```css
 @import "/usr/lib/hyprwhspr/config/waybar/hyprwhspr-style.css";
 ```
+
+`follow` keeps running and prints a new status line the moment recording starts or stops, using `inotifywait` from `inotify-tools`. Every 2 seconds it also rechecks the service, microphone, and PipeWire. Configs from older releases that poll `status` on an `interval` still work, but update up to a second late; rerun `hyprwhspr waybar install` to switch.
 
 Waybar icon click interactions:
 

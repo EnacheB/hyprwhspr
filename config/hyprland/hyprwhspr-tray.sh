@@ -232,12 +232,7 @@ mic_recording_now() {
     if ! is_hyprwhspr_running; then
         return 1
     fi
-    
-    # Check if hyprwhspr process is actually running
-    if ! pgrep -f "hyprwhspr" > /dev/null 2>&1; then
-        return 1
-    fi
-    
+
     # Check recording status file written by hyprwhspr
     local status_file="$RUNTIME_DIR/recording_status"
     if [[ ! -f "$status_file" ]]; then
@@ -688,10 +683,7 @@ emit_json() {
 # Function to get current state with detailed error reasons
 get_current_state() {
     local reason=""
-    
-    # Check service health first
-    check_service_health
-    
+
     # Check if service is running
     if ! systemctl --user is-active --quiet hyprwhspr.service; then
         # Distinguish failed from inactive
@@ -772,6 +764,42 @@ get_current_state() {
     echo "ready"
 }
 
+# Waybar continuous mode: print the status now and again whenever it changes.
+# The service's state files wake the loop through inotify, so a new recording
+# shows at once; the 2 s timeout re-runs the full check for what no file
+# records (service stopped or crashed, mic unplugged, PipeWire down).
+follow_status() {
+    if ! command -v inotifywait &> /dev/null; then
+        emit_json "error" "install inotify-tools"
+        return 1
+    fi
+    local s r mic="" shown="" woken=false
+    while :; do
+        check_recovery_result
+        IFS=: read -r s r <<<"$(stabilize "$(get_current_state)")"
+        # The mic details cost ~100 ms of pactl calls: refresh them on the
+        # timeout, not while a state change is waiting to be shown
+        $woken || mic="$(mic_tooltip_line)"
+        if [[ "$s:$r:$mic" != "$shown" ]]; then
+            emit_json "$s" "$r" "$mic"
+            shown="$s:$r:$mic"
+        fi
+        # One watch for the whole loop (-m): changes made while the state was
+        # being read stay queued instead of slipping between two watches
+        if read -r -t 2 -u 3 _; then
+            woken=true
+            while read -r -t 0 -u 3; do read -r -u 3 _; done  # a burst is one update
+        elif (( $? > 128 )); then
+            woken=false
+        else
+            emit_json "error" "inotifywait exited"
+            return 1
+        fi
+    done 3< <(inotifywait -mq -e create,close_write,moved_to,delete \
+        --include '/(recording_status|model_unloaded|\.mic_zero_volume|recovery_result)$' \
+        "$RUNTIME_DIR")
+}
+
 # Main menu
 case "${1:-status}" in
     "status")
@@ -779,6 +807,9 @@ case "${1:-status}" in
         check_recovery_result
         IFS=: read -r s r <<<"$(stabilize "$(get_current_state)")"
         emit_json "$s" "$r" "$(mic_tooltip_line)"
+        ;;
+    "follow")
+        follow_status
         ;;
     "toggle")
         toggle_hyprwhspr
@@ -845,10 +876,11 @@ case "${1:-status}" in
         fi
         ;;
     *)
-        echo "Usage: $0 [status|toggle|record|start|stop|restart|health]"
+        echo "Usage: $0 [status|follow|toggle|record|start|stop|restart|health]"
         echo ""
         echo "Commands:"
         echo "  status    - Show current status (JSON output)"
+        echo "  follow    - Print status JSON on every change (Waybar module)"
         echo "  toggle    - Toggle hyprwhspr on/off"
         echo "  start     - Start hyprwhspr"
         echo "  stop      - Stop hyprwhspr"

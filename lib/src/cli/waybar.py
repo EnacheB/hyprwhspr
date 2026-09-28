@@ -96,10 +96,9 @@ def _setup_waybar(mode: str = 'install'):
         module_config = {
             "custom/hyprwhspr": {
                 "format": "{}",
-                "exec": f"{tray_command} status",
-                "interval": 1,
+                "exec": f"{tray_command} follow",
+                "restart-interval": 5,
                 "return-type": "json",
-                "exec-on-event": True,
                 "on-click": f"{tray_command} record",
                 "on-click-right": f"{tray_command} restart",
                 "tooltip": True
