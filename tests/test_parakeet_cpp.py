@@ -38,9 +38,10 @@ class NativeTests(unittest.TestCase):
             self.assertIs(runtime.bind_library('/mock/library'), self.library)
         self.assertEqual(self.library.parakeet_capi_load.argtypes, [ctypes.c_char_p])
         self.assertIs(self.library.parakeet_capi_load.restype, ctypes.c_void_p)
-        self.assertEqual(self.library.parakeet_capi_transcribe_pcm.argtypes,
-                         [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_int, ctypes.c_int, ctypes.c_int])
-        self.assertIs(self.library.parakeet_capi_transcribe_pcm.restype, ctypes.c_void_p)
+        self.assertEqual(self.library.parakeet_capi_transcribe_pcm_nbest_json.argtypes,
+                         [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_int, ctypes.c_int,
+                          ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p])
+        self.assertIs(self.library.parakeet_capi_transcribe_pcm_nbest_json.restype, ctypes.c_void_p)
         self.assertIsNone(self.library.parakeet_capi_free_string.restype)
         self.assertIsNone(self.library.parakeet_capi_free.restype)
         self.assertIs(self.library.parakeet_capi_last_error.restype, ctypes.c_char_p)
@@ -50,24 +51,25 @@ class NativeTests(unittest.TestCase):
                 runtime.bind_library('/mock/library')
 
     def test_contiguous_float_mono_unicode_and_owned_output(self):
-        result = ctypes.create_string_buffer('  こんにちは café  '.encode())
+        result = ctypes.create_string_buffer(
+            '{"hypotheses": [{"text": "  こんにちは café  "}, {"text": "other"}]}'.encode())
         pointer = ctypes.addressof(result)
-        def transcribe(ctx, audio, count, rate, decoder):
-            self.assertEqual((ctx, count, rate, decoder), (123, 5, 16000, 0))
+        def transcribe(ctx, audio, count, rate, beam, nbest, norm, lang):
+            self.assertEqual((ctx, count, rate, beam, nbest, norm, lang), (123, 5, 16000, 4, 1, 1, None))
             np.testing.assert_array_equal(np.ctypeslib.as_array(audio, shape=(count,)), np.arange(10)[::2])
             return pointer
-        self.library.parakeet_capi_transcribe_pcm.side_effect = transcribe
+        self.library.parakeet_capi_transcribe_pcm_nbest_json.side_effect = transcribe
         self.assertEqual(self.backend.transcribe(np.arange(10, dtype=np.float64)[::2]), 'こんにちは café')
         self.library.parakeet_capi_free_string.assert_called_once_with(pointer)
 
     def test_frees_output_even_when_decoding_fails(self):
         result = ctypes.create_string_buffer(b'\xff')
-        self.library.parakeet_capi_transcribe_pcm.return_value = ctypes.addressof(result)
+        self.library.parakeet_capi_transcribe_pcm_nbest_json.return_value = ctypes.addressof(result)
         self.assertEqual(self.backend.transcribe(np.ones(8)), '')
         self.library.parakeet_capi_free_string.assert_called_once_with(ctypes.addressof(result))
 
     def test_native_error_is_borrowed_and_resampling_is_shared(self):
-        self.library.parakeet_capi_transcribe_pcm.return_value = None
+        self.library.parakeet_capi_transcribe_pcm_nbest_json.return_value = None
         self.library.parakeet_capi_last_error.return_value = b'inference failed'
         with mock.patch.object(self.backend, '_resample_audio', return_value=np.ones(4)) as resample:
             self.assertEqual(self.backend.transcribe(np.ones(8), 32000), '')
@@ -79,7 +81,7 @@ class NativeTests(unittest.TestCase):
     def test_empty_invalid_audio_and_unload(self):
         for audio in (np.array([]), np.ones((2, 3)), np.array([float('nan')])):
             self.assertEqual(self.backend.transcribe(audio), '')
-        self.library.parakeet_capi_transcribe_pcm.assert_not_called()
+        self.library.parakeet_capi_transcribe_pcm_nbest_json.assert_not_called()
         self.backend.cleanup()
         self.backend.unload()
         self.library.parakeet_capi_free.assert_called_once_with(123)
@@ -114,10 +116,10 @@ class NativeTests(unittest.TestCase):
         manager._backend = backend
         manager.ready = True
         manager._last_use_time = 1.0  # far beyond the 30-minute idle threshold
-        self.library.parakeet_capi_transcribe_pcm.return_value = None
+        self.library.parakeet_capi_transcribe_pcm_nbest_json.return_value = None
         self.library.parakeet_capi_last_error.return_value = b'x'
         manager.transcribe_audio(np.full(3200, 0.1, dtype=np.float32))
-        self.library.parakeet_capi_transcribe_pcm.assert_called_once()
+        self.library.parakeet_capi_transcribe_pcm_nbest_json.assert_called_once()
         self.library.parakeet_capi_free.assert_not_called()
 
     def test_cleanup_waits_for_manager_model_lock(self):

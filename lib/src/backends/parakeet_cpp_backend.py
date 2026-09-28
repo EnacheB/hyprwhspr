@@ -2,6 +2,7 @@
 
 import contextlib
 import ctypes
+import json
 import os
 import numpy as np
 
@@ -15,6 +16,14 @@ except ImportError:
 class ParakeetCppBackend(TranscriptionBackend):
     name = 'parakeet-cpp'
     loads_in_background = True
+
+    # Beam search rather than greedy: on real dictation it drops fillers and
+    # the fragments greedy decoding invents from noise ("range vanquisher
+    # title."). 4 wide costs ~0.2 s per 10 s of audio on a Radeon 780M.
+    # parakeet.cpp v0.5.0's beam search throws on about 1 chunk in 5
+    # ("zero-duration expansion did not reduce score"); the fix is
+    # mudler/parakeet.cpp#74.
+    _BEAM_SIZE = 4
 
     def __init__(self, manager):
         super().__init__(manager)
@@ -63,13 +72,15 @@ class ParakeetCppBackend(TranscriptionBackend):
             audio = np.ascontiguousarray(audio, dtype=np.float32)
             if audio.size > 2147483647 or not np.isfinite(audio).all():
                 raise ValueError('Audio length or samples are invalid')
-            output = self._library.parakeet_capi_transcribe_pcm(
+            # Best hypothesis only, length-normalized like NeMo's beam search.
+            output = self._library.parakeet_capi_transcribe_pcm_nbest_json(
                 self._context, audio.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-                audio.size, 16000, 0)  # architecture-default greedy decoder
+                audio.size, 16000, self._BEAM_SIZE, 1, 1, None)
             if not output:
                 error = self._library.parakeet_capi_last_error(self._context)
                 raise RuntimeError((error or b'Native inference failed').decode('utf-8', errors='replace'))
-            return ctypes.string_at(output).decode('utf-8').strip()
+            hypotheses = json.loads(ctypes.string_at(output).decode('utf-8'))['hypotheses']
+            return hypotheses[0]['text'].strip() if hypotheses else ''
         except Exception as exc:
             log(f'[PARAKEET-CPP] Transcription failed: {exc}')
             return ''

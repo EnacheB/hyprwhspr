@@ -69,8 +69,9 @@ def bind_library(path):
         'abi_version': ([], ctypes.c_int),
         'load': ([ctypes.c_char_p], ctypes.c_void_p),
         'free': ([ctypes.c_void_p], None),
-        'transcribe_pcm': ([ctypes.c_void_p, ctypes.POINTER(ctypes.c_float),
-                            ctypes.c_int, ctypes.c_int, ctypes.c_int], ctypes.c_void_p),
+        'transcribe_pcm_nbest_json': ([ctypes.c_void_p, ctypes.POINTER(ctypes.c_float),
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_char_p], ctypes.c_void_p),
         'free_string': ([ctypes.c_void_p], None),
         'last_error': ([ctypes.c_void_p], ctypes.c_char_p),
     }
