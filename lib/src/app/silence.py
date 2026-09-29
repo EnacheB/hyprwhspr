@@ -37,7 +37,7 @@ class SilenceMixin:
         self._continuous_stop_silence_monitor()
         self._continuous_silence_stop.clear()
         self._chunk_texts = [] if chunked else None
-        self._chunk_audio = [] if chunked and self.config.get_setting('debug_recordings', False) else None
+        self._chunk_audio = [] if chunked and self._debug_recordings_keep() else None
         self._chunk_tail_has_sound = False
 
         if chunked:

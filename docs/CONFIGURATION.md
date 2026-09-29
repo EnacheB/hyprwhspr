@@ -1024,6 +1024,8 @@ Hear what the model heard. Keep the last 3 recordings as `.wav` in `$XDG_RUNTIME
 }
 ```
 
+A number keeps that many instead, e.g. `"debug_recordings": 100`. At 44.1 kHz that is about 5 MB per minute of audio, held in RAM.
+
 Audio only, no transcripts. In continuous mode, each pasted chunk counts as one. Long-form keeps its own segments.
 
 ### Audio ducking

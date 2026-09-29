@@ -81,6 +81,15 @@ class DebugRecordingsTests(unittest.TestCase):
         app.audio_capture.save_audio_to_wav.assert_called_once()
         self.assertIs(app.audio_capture.save_audio_to_wav.call_args.args[0], audio)
 
+    def test_count_keeps_that_many(self):
+        stamps = self._record(self._app({'debug_recordings': 5}), 7)
+        remaining = sorted(p.stem[:len(stamps[0])] for p in self.dir.glob('*.wav'))
+        self.assertEqual(remaining, stamps[2:])
+
+    def test_zero_is_off(self):
+        self._record(self._app({'debug_recordings': 0}), 1)
+        self.assertFalse(self.dir.exists())
+
     def test_non_bool_value_still_caps(self):
         # A hand-edited number or string used to break pruning and pile up WAVs
         self._record(self._app({'debug_recordings': '20'}), 5)
