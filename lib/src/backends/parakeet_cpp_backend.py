@@ -13,6 +13,30 @@ except ImportError:
     import parakeet_cpp_runtime as runtime
 
 
+def _shorten_pauses(audio, sample_rate, keep_seconds=1.0):
+    """Shorten every pause longer than keep_seconds to keep_seconds.
+
+    Parakeet silently drops whole sentences spoken after a pause of 1.5 s or
+    more, even in 15 s recordings: 2 of 100 real dictations lost one, and this
+    restored both without losing speech elsewhere. A 20 ms frame counts as
+    silent when it is within 12 dB of the audio's own quietest 10%.
+    """
+    hop = int(0.02 * sample_rate)
+    frames = audio.size // hop
+    if not frames:
+        return audio
+    power = np.square(audio[:frames * hop], dtype=np.float64).reshape(frames, hop).mean(1)
+    level = 10 * np.log10(power + 1e-12)
+    silent = np.concatenate(([0], level < np.percentile(level, 10) + 12, [0])).astype(np.int8)
+    edges = np.flatnonzero(np.diff(silent)) * hop
+    keep = np.ones(audio.size, dtype=bool)
+    half = int(keep_seconds / 2 * sample_rate)
+    for start, end in zip(edges[::2], edges[1::2]):
+        if end - start > keep_seconds * sample_rate:
+            keep[start + half:end - half] = False
+    return audio if keep.all() else audio[keep]
+
+
 class ParakeetCppBackend(TranscriptionBackend):
     name = 'parakeet-cpp'
     loads_in_background = True
@@ -67,13 +91,13 @@ class ParakeetCppBackend(TranscriptionBackend):
                 raise ValueError('Expected mono audio')
             if not audio.size:
                 return ''
-            # parakeet.cpp resamples to 16 kHz itself, linearly. Keep that: on 100
-            # real 44.1 kHz dictations, resampling with soxr first raised the word
-            # error rate against Whisper turbo by ~2 points (greedy and beam alike)
-            # and dropped whole sentences from long recordings.
+            # parakeet.cpp resamples to 16 kHz itself, linearly. Keep that: judged
+            # by ear on 100 real 44.1 kHz dictations, it beat resampling with soxr
+            # first in 6 places and lost in 3.
             audio = np.ascontiguousarray(audio, dtype=np.float32)
             if audio.size > 2147483647 or not np.isfinite(audio).all():
                 raise ValueError('Audio length or samples are invalid')
+            audio = _shorten_pauses(audio, int(sample_rate))
             # Best hypothesis only, length-normalized like NeMo's beam search.
             output = self._library.parakeet_capi_transcribe_pcm_nbest_json(
                 self._context, audio.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
