@@ -68,13 +68,14 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(self.backend.transcribe(np.ones(8)), '')
         self.library.parakeet_capi_free_string.assert_called_once_with(ctypes.addressof(result))
 
-    def test_native_error_is_borrowed_and_resampling_is_shared(self):
+    def test_native_error_is_borrowed_and_native_rate_is_passed(self):
+        # parakeet.cpp's own linear resampling transcribes better than soxr's
         self.library.parakeet_capi_transcribe_pcm_nbest_json.return_value = None
         self.library.parakeet_capi_last_error.return_value = b'inference failed'
-        with mock.patch.object(self.backend, '_resample_audio', return_value=np.ones(4)) as resample:
-            self.assertEqual(self.backend.transcribe(np.ones(8), 32000), '')
-            resample.assert_called_once()
-            self.assertEqual(resample.call_args.args[1:], (32000, 16000))
+        with mock.patch.object(self.backend, '_resample_audio') as resample:
+            self.assertEqual(self.backend.transcribe(np.ones(8), 44100), '')
+            resample.assert_not_called()
+        self.assertEqual(self.library.parakeet_capi_transcribe_pcm_nbest_json.call_args.args[2:4], (8, 44100))
         self.library.parakeet_capi_free_string.assert_not_called()
         self.library.parakeet_capi_last_error.assert_called_once_with(123)
 
